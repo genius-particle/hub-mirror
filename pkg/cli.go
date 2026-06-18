@@ -102,6 +102,19 @@ func (c *Cli) Source2Target(source string, platform string) (*Output, error) {
 	}, nil
 }
 
+// BuildTarget produces the destination reference for a built image. Unlike
+// Source2Target it does NOT rewrite the name — the user's image and tag are
+// used verbatim, prefixed by the configured repository.
+func (c *Cli) BuildTarget(image, tag string) (string, error) {
+	if image == "" || tag == "" {
+		return "", errors.New("image or tag cannot be empty")
+	}
+	if c.repository == "" {
+		return "docker.io/" + c.username + "/" + image + ":" + tag, nil
+	}
+	return c.repository + "/" + image + ":" + tag, nil
+}
+
 func (c *Cli) PullTagPushImage(ctx context.Context, source, platform string) (*Output, error) {
 	output, err := c.Source2Target(source, platform)
 	if err != nil {
