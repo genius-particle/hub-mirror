@@ -1,0 +1,16 @@
+### 构建成功 ✅
+
+镜像地址：`{{ .Target }}`
+平台：`{{ .Platform }}`
+
+### docker 版本
+
+```shell
+docker pull {{ .Target }}
+```
+
+### containerd 版本（以 k8s.io namespaces 为例）
+
+```shell
+ctr -n k8s.io image pull {{ .Target }}
+```

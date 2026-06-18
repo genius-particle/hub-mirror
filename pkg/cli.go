@@ -1,7 +1,9 @@
 package pkg
 
 import (
+	"archive/tar"
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -102,6 +104,57 @@ func (c *Cli) Source2Target(source string, platform string) (*Output, error) {
 	}, nil
 }
 
+// BuildTarget produces the destination reference for a built image. Unlike
+// Source2Target it does NOT rewrite the name — the user's image and tag are
+// used verbatim, prefixed by the configured repository.
+func (c *Cli) BuildTarget(image, tag string) (string, error) {
+	if image == "" || tag == "" {
+		return "", errors.New("image or tag cannot be empty")
+	}
+	if c.repository == "" {
+		return "docker.io/" + c.username + "/" + image + ":" + tag, nil
+	}
+	return c.repository + "/" + image + ":" + tag, nil
+}
+
+// BuildImage builds the given Dockerfile content (with an empty build context)
+// for the requested platform and tags the result as target. Build errors are
+// surfaced from the daemon stream via decodeStream.
+func (c *Cli) BuildImage(ctx context.Context, dockerfile, platform, target string) error {
+	// Build context = a tar containing a single "Dockerfile" entry.
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	if err := tw.WriteHeader(&tar.Header{
+		Name: "Dockerfile",
+		Mode: 0o644,
+		Size: int64(len(dockerfile)),
+	}); err != nil {
+		return err
+	}
+	if _, err := tw.Write([]byte(dockerfile)); err != nil {
+		return err
+	}
+	if err := tw.Close(); err != nil {
+		return err
+	}
+
+	resp, err := c.cli.ImageBuild(ctx, &buf, types.ImageBuildOptions{
+		Dockerfile: "Dockerfile",
+		Tags:       []string{target},
+		Platform:   platform,
+		Remove:     true,
+	})
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if resp.Body != nil {
+			resp.Body.Close()
+		}
+	}()
+	return c.decodeStream(resp.Body)
+}
+
 func (c *Cli) PullTagPushImage(ctx context.Context, source, platform string) (*Output, error) {
 	output, err := c.Source2Target(source, platform)
 	if err != nil {
@@ -126,8 +179,47 @@ func (c *Cli) PullTagPushImage(ctx context.Context, source, platform string) (*O
 	return output, nil
 }
 
-type errorMessage struct {
-	Error string `json:"error"`
+type streamMessage struct {
+	Stream       string `json:"stream,omitempty"`
+	Error        string `json:"error,omitempty"`
+	ErrorMessage string `json:"errorMessage,omitempty"`
+	ErrorDetail  *struct {
+		Message string `json:"message,omitempty"`
+	} `json:"errorDetail,omitempty"`
+}
+
+// decodeStream reads the docker daemon JSON stream line by line, writes each
+// line to the log (if set), and returns the first error reported by the daemon.
+// It accepts all three error shapes used across pull/push/build:
+// {"error":"..."}, {"errorMessage":"..."}, {"errorDetail":{"message":"..."}}.
+func (c *Cli) decodeStream(rd io.Reader) error {
+	reader := bufio.NewReader(rd)
+	var msg streamMessage
+	for {
+		line, err := reader.ReadBytes('\n')
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return err
+		}
+
+		if c.log != nil {
+			_, _ = c.log.Write(line)
+		}
+
+		msg = streamMessage{}
+		_ = json.Unmarshal(line, &msg)
+		if msg.Error != "" {
+			return errors.New(msg.Error)
+		}
+		if msg.ErrorMessage != "" {
+			return errors.New(msg.ErrorMessage)
+		}
+		if msg.ErrorDetail != nil && msg.ErrorDetail.Message != "" {
+			return errors.New(msg.ErrorDetail.Message)
+		}
+	}
 }
 
 func (c *Cli) PullImage(ctx context.Context, image, platform string) error {
@@ -140,29 +232,7 @@ func (c *Cli) PullImage(ctx context.Context, image, platform string) error {
 	if err != nil {
 		return err
 	}
-
-	var e errorMessage
-	buffIOReader := bufio.NewReader(pullOut)
-	for {
-		streamBytes, err := buffIOReader.ReadBytes('\n')
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return err
-		}
-
-		if c.log != nil {
-			_, _ = c.log.Write(streamBytes)
-		}
-
-		_ = json.Unmarshal(streamBytes, &e)
-		if e.Error != "" {
-			return errors.New(e.Error)
-		}
-	}
-
-	return nil
+	return c.decodeStream(pullOut)
 }
 
 func (c *Cli) PushImage(ctx context.Context, image, platform string) error {
@@ -178,27 +248,5 @@ func (c *Cli) PushImage(ctx context.Context, image, platform string) error {
 	if err != nil {
 		return err
 	}
-
-	var e errorMessage
-	buffIOReader := bufio.NewReader(pushOut)
-	for {
-		streamBytes, err := buffIOReader.ReadBytes('\n')
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return err
-		}
-
-		if c.log != nil {
-			_, _ = c.log.Write(streamBytes)
-		}
-
-		_ = json.Unmarshal(streamBytes, &e)
-		if e.Error != "" {
-			return errors.New(e.Error)
-		}
-	}
-
-	return nil
+	return c.decodeStream(pushOut)
 }

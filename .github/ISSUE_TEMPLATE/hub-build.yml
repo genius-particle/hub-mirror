@@ -1,0 +1,37 @@
+name: hub-build
+description: 提交 Dockerfile，自动构建并发布镜像到你的镜像仓库
+title: "[hub-build] 请求执行任务"
+labels: ["hub-build"]
+body:
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      description: 目标架构，可留空（默认 linux/amd64）。如 linux/arm64、arm64
+      placeholder: linux/amd64
+    validations:
+      required: false
+  - type: input
+    id: image
+    attributes:
+      label: Image
+      description: 镜像名（不含仓库前缀，程序自动拼接 repository/image:tag）
+      placeholder: my-app
+    validations:
+      required: true
+  - type: input
+    id: tag
+    attributes:
+      label: Tag
+      description: 镜像 tag
+      placeholder: v1.0
+    validations:
+      required: true
+  - type: textarea
+    id: dockerfile
+    attributes:
+      label: Dockerfile
+      description: 直接粘贴完整 Dockerfile，无需转义。无构建上下文：COPY 本地文件无效，COPY --from= 多阶段 / ADD <url> / RUN wget 可用
+      render: dockerfile
+    validations:
+      required: true

@@ -93,3 +93,35 @@
 
 ![提交 Issue](https://github.com/user-attachments/assets/c0357521-6dd0-4f13-8a99-bccdf1314ab8)
 
+## hub-mirror 构建镜像（hub-build）
+
+除了镜像中转，本项目还支持**提交 Dockerfile 自动构建并发布镜像**。
+
+### 1️⃣ 复用 hub-mirror 的前置配置
+
+Fork 项目、配置 `DOCKER_USERNAME` / `DOCKER_TOKEN` / `DOCKER_REPOSITORY` 三个 Secret、开启 Issues 与 Actions 写权限，步骤同上。
+
+### 2️⃣ 添加 Issue Label
+
+进入 `Issues` → `Labels`，新建标签：
+
+- `hub-build`
+
+（`success` / `failure` 标签与 hub-mirror 共用。）
+
+### 3️⃣ 启用 Actions Workflow
+
+进入 `Actions` → 选择 `hub-build` → 右上角 `···` → `Enable Workflow`。
+
+### 4️⃣ 提交 Issue 触发构建
+
+在 `Issues` 页面 `New issue` → 选择 `hub-build` 表单：
+
+- `Image`：镜像名（不含仓库前缀）
+- `Tag`：镜像 tag
+- `Dockerfile`：**直接粘贴完整 Dockerfile，无需转义**
+
+> ⚠️ 无构建上下文：`COPY` 本地文件无效；`COPY --from=` 多阶段、`ADD <url>`、`RUN wget/curl` 可用。
+
+提交后 Actions 自动构建并推送，Issue 评论返回 `docker pull` / `ctr pull` 命令，并打上 `success` 或 `failure` 标签。
+
