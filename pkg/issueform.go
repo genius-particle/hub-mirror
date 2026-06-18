@@ -2,11 +2,11 @@ package pkg
 
 import "strings"
 
-// parseIssueForm parses a GitHub Issue Form issue body into a map keyed by
+// ParseIssueForm parses a GitHub Issue Form issue body into a map keyed by
 // section label. Sections are delimited by lines starting with "### "; a
 // section's value is the trimmed text between its header and the next header
 // (or end of body).
-func parseIssueForm(body string) map[string]string {
+func ParseIssueForm(body string) map[string]string {
 	sections := map[string]string{}
 	var cur string
 	var buf strings.Builder
@@ -30,10 +30,10 @@ func parseIssueForm(body string) map[string]string {
 	return sections
 }
 
-// extractFenced strips a surrounding markdown code fence (```...```) if present
+// ExtractFenced strips a surrounding markdown code fence (```...```) if present
 // and returns the inner content verbatim. Content without a fence is returned
 // unchanged.
-func extractFenced(s string) string {
+func ExtractFenced(s string) string {
 	lines := strings.Split(strings.TrimSpace(s), "\n")
 	if len(lines) > 0 && strings.HasPrefix(strings.TrimSpace(lines[0]), "```") {
 		lines = lines[1:]

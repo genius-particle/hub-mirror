@@ -9,7 +9,7 @@ import (
 func TestParseIssueForm(t *testing.T) {
 	body := "### Platform\n\nlinux/arm64\n\n### Image\n\nmy-app\n\n### Tag\n\nv1.0\n\n### Dockerfile\n\n```dockerfile\nFROM golang:1.21\nWORKDIR /app\n```\n"
 
-	sections := parseIssueForm(body)
+	sections := ParseIssueForm(body)
 
 	assert.Equal(t, "linux/arm64", sections["Platform"])
 	assert.Equal(t, "my-app", sections["Image"])
@@ -19,7 +19,7 @@ func TestParseIssueForm(t *testing.T) {
 func TestParseIssueForm_EmptyPlatform(t *testing.T) {
 	body := "### Platform\n\n\n### Image\n\nmy-app\n\n### Tag\n\nv1.0\n\n### Dockerfile\n\n```dockerfile\nFROM scratch\n```\n"
 
-	sections := parseIssueForm(body)
+	sections := ParseIssueForm(body)
 
 	assert.Equal(t, "", sections["Platform"])
 	assert.Equal(t, "my-app", sections["Image"])
@@ -29,15 +29,15 @@ func TestParseIssueForm_EmptyPlatform(t *testing.T) {
 func TestExtractFenced(t *testing.T) {
 	in := "```dockerfile\nFROM golang:1.21\nWORKDIR /app\nRUN echo 'hello'\n```"
 	want := "FROM golang:1.21\nWORKDIR /app\nRUN echo 'hello'"
-	assert.Equal(t, want, extractFenced(in))
+	assert.Equal(t, want, ExtractFenced(in))
 }
 
 func TestExtractFenced_NoFence(t *testing.T) {
 	in := "FROM scratch"
-	assert.Equal(t, "FROM scratch", extractFenced(in))
+	assert.Equal(t, "FROM scratch", ExtractFenced(in))
 }
 
 func TestExtractFenced_PreservesInnerBackticks(t *testing.T) {
 	in := "```dockerfile\nRUN echo `date`\n```"
-	assert.Equal(t, "RUN echo `date`", extractFenced(in))
+	assert.Equal(t, "RUN echo `date`", ExtractFenced(in))
 }
