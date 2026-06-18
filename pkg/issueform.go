@@ -15,7 +15,7 @@ func ParseIssueForm(body string) map[string]string {
 		line := strings.TrimRight(raw, "\r")
 		if strings.HasPrefix(line, "### ") {
 			if cur != "" {
-				sections[cur] = strings.TrimSpace(buf.String())
+				sections[cur] = cleanValue(buf.String())
 			}
 			cur = strings.TrimSpace(strings.TrimPrefix(line, "### "))
 			buf.Reset()
@@ -25,9 +25,20 @@ func ParseIssueForm(body string) map[string]string {
 		}
 	}
 	if cur != "" {
-		sections[cur] = strings.TrimSpace(buf.String())
+		sections[cur] = cleanValue(buf.String())
 	}
 	return sections
+}
+
+// cleanValue trims surrounding whitespace and treats the placeholder GitHub
+// inserts for unfilled optional Issue Form fields ("_No response_",
+// case-insensitive) as empty, so defaulting and required-field validation work.
+func cleanValue(s string) string {
+	s = strings.TrimSpace(s)
+	if strings.EqualFold(s, "_no response_") {
+		return ""
+	}
+	return s
 }
 
 // ExtractFenced strips a surrounding markdown code fence (```...```) if present

@@ -41,3 +41,15 @@ func TestExtractFenced_PreservesInnerBackticks(t *testing.T) {
 	in := "```dockerfile\nRUN echo `date`\n```"
 	assert.Equal(t, "RUN echo `date`", ExtractFenced(in))
 }
+
+func TestParseIssueForm_NoResponsePlaceholder(t *testing.T) {
+	// GitHub renders an unfilled optional Issue Form field as "_No response_";
+	// it must be treated as empty so defaulting/validation work downstream.
+	body := "### Platform\n\n_No response_\n\n### Image\n\nmy-app\n\n### Tag\n\nv1.0\n\n### Dockerfile\n\n```dockerfile\nFROM scratch\n```\n"
+
+	sections := ParseIssueForm(body)
+
+	assert.Equal(t, "", sections["Platform"], `"_No response_" should be treated as empty`)
+	assert.Equal(t, "my-app", sections["Image"])
+	assert.Equal(t, "v1.0", sections["Tag"])
+}
