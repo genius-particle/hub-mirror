@@ -1,7 +1,9 @@
 package pkg
 
 import (
+	"archive/tar"
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -113,6 +115,44 @@ func (c *Cli) BuildTarget(image, tag string) (string, error) {
 		return "docker.io/" + c.username + "/" + image + ":" + tag, nil
 	}
 	return c.repository + "/" + image + ":" + tag, nil
+}
+
+// BuildImage builds the given Dockerfile content (with an empty build context)
+// for the requested platform and tags the result as target. Build errors are
+// surfaced from the daemon stream via decodeStream.
+func (c *Cli) BuildImage(ctx context.Context, dockerfile, platform, target string) error {
+	// Build context = a tar containing a single "Dockerfile" entry.
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	if err := tw.WriteHeader(&tar.Header{
+		Name: "Dockerfile",
+		Mode: 0o644,
+		Size: int64(len(dockerfile)),
+	}); err != nil {
+		return err
+	}
+	if _, err := tw.Write([]byte(dockerfile)); err != nil {
+		return err
+	}
+	if err := tw.Close(); err != nil {
+		return err
+	}
+
+	resp, err := c.cli.ImageBuild(ctx, &buf, types.ImageBuildOptions{
+		Dockerfile: "Dockerfile",
+		Tags:       []string{target},
+		Platform:   platform,
+		Remove:     true,
+	})
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if resp.Body != nil {
+			resp.Body.Close()
+		}
+	}()
+	return c.decodeStream(resp.Body)
 }
 
 func (c *Cli) PullTagPushImage(ctx context.Context, source, platform string) (*Output, error) {
